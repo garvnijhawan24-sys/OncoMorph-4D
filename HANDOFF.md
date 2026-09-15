@@ -24,6 +24,33 @@ recovering; better to train fresh on MU-Glioma-Post, which has real ground-truth
   scheme as BraTS `seg` (background/necrotic/edema/enhancing) — verified directly
   against the data.
 - **Nothing has been trained yet.** The notebook is ready to run top to bottom.
+- **Actually verified, not just eyeballed.** I installed the exact `requirements.txt`
+  stack fresh (TensorFlow 2.21 / Keras 3) and ran the real notebook logic against
+  the real dataset: imports, model build+compile, the patient split (verified zero
+  patient overlap across train/val/test), `DataGenerator` batch shapes/dtypes, one
+  real `model.fit` step, `model.evaluate`, and `model.predict` — all pass. That
+  surfaced three real bugs, now fixed:
+  1. **`keras.backend` (`K.flatten`/`.sum`/`.round`/`.clip`/`.abs`/`.square`) is
+     gone in Keras 3** — the version `pip install -r requirements.txt` actually
+     installs today. All loss/metric functions (`dice_coef`, `precision`,
+     `sensitivity`, `specificity`, per-class dice) were rewritten against
+     `keras.ops`, which is stable across versions. Training would have crashed
+     on the very first step otherwise.
+  2. **`plot_model` hard-crashes without system Graphviz installed** (the `dot`
+     binary, not just the `graphviz`/`pydot` Python packages), which would have
+     halted a top-to-bottom run right after the model is defined, before ever
+     reaching training. Wrapped in a try/except so it skips gracefully if
+     Graphviz isn't present — it's a visualization-only cell.
+  3. **`tf.keras.metrics.MeanIoU` silently reports a wrong number** against this
+     model's real softmax-probability output (verified: it reported 0.375 mean
+     IoU for a *perfectly correct* prediction). Swapped for
+     `tf.keras.metrics.OneHotMeanIoU`, the metric actually meant for one-hot /
+     softmax outputs — verified it reports 1.0 correctly on the same test case.
+     This only affects the final `model.evaluate` in the "Evaluation" section;
+     doesn't affect training itself.
+  Also removed a dead/broken leftover cell (`imageLoader`/`loadDataFromDir`)
+  that referenced undefined variables — harmless since it was never called, but
+  confusing clutter.
 
 ## What still needs doing
 1. Run [brain_tumor_segmentation_u_net.ipynb](brain_tumor_segmentation_u_net.ipynb)
@@ -56,10 +83,19 @@ repo root, matching the path the notebook expects (`DATASET_PATH` in the noteboo
 - **A GPU matters a lot here.** In the original walkthrough, epochs took
   150–850s each *on 369 BraTS cases*; this dataset has 596 patient-timepoint
   samples (more data), so CPU-only training could easily run overnight or
-  longer for 25 epochs. If the training laptop has an NVIDIA GPU, make sure
-  `tensorflow` picks it up (matching CUDA/cuDNN installed) before doing a
-  full run — a quick `tf.config.list_physical_devices('GPU')` check up front
-  saves a lot of wasted time.
+  longer for 25 epochs. Confirm the GPU is actually visible before committing
+  to a full run: `tf.config.list_physical_devices('GPU')`.
+- **If the training laptop is Windows (not WSL/Linux/Mac): plain `pip install
+  tensorflow` will NOT use the GPU at all**, even with a good NVIDIA card and
+  drivers installed — confirmed directly from this environment's own run:
+  `WARNING:tensorflow: TensorFlow GPU support is not available on native
+  Windows for TensorFlow >= 2.11. ... Please use WSL2 or the
+  TensorFlow-DirectML plugin.` Two ways around it: run this inside **WSL2**
+  (Windows Subsystem for Linux — TF's GPU support works normally there), or
+  install `tensorflow-directml-plugin` instead of plain `tensorflow` for
+  native-Windows GPU support. Either way, verify with the
+  `list_physical_devices('GPU')` check above before starting a real run —
+  don't assume it's using the GPU just because one is installed.
 - **Sanity-check on a tiny slice first.** Before committing to a full 25-epoch
   run, it's worth temporarily setting `epochs=1` (or slicing `train_ids[:5]`)
   just to confirm the pipeline runs end-to-end on this machine without
