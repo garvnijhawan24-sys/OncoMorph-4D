@@ -96,6 +96,20 @@ repo root, matching the path the notebook expects (`DATASET_PATH` in the noteboo
   native-Windows GPU support. Either way, verify with the
   `list_physical_devices('GPU')` check above before starting a real run —
   don't assume it's using the GPU just because one is installed.
+- **If the training laptop is an Apple Silicon Mac (M-series, e.g. M5):** plain
+  `pip install tensorflow` runs fine but is **CPU-only** there too — Apple
+  Silicon GPU acceleration needs one extra package on top:
+  ```bash
+  pip install tensorflow-metal
+  ```
+  This plugs TensorFlow into Metal (Apple's GPU API) automatically; no other
+  code changes needed. After installing it, re-run the
+  `list_physical_devices('GPU')` check — it should list the GPU. Only install
+  `tensorflow-metal` on macOS; it doesn't exist for Windows/Linux, so it's
+  deliberately left out of `requirements.txt` (which needs to work on any OS).
+  An 8-core GPU M-series chip should train this noticeably faster than the
+  CPU-only numbers quoted above, though still slower than a discrete NVIDIA
+  GPU with CUDA.
 - **Sanity-check on a tiny slice first.** Before committing to a full 25-epoch
   run, it's worth temporarily setting `epochs=1` (or slicing `train_ids[:5]`)
   just to confirm the pipeline runs end-to-end on this machine without
