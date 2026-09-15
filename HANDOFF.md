@@ -43,8 +43,31 @@ recovering; better to train fresh on MU-Glioma-Post, which has real ground-truth
 ```bash
 pip install -r requirements.txt
 ```
+(The original `requirements.txt` in this repo's history was a dumped Python list,
+not valid for pip — it's been fixed to real package names.)
+
 Dataset lives in `PKG - MU-Glioma-Post/MU-Glioma-Post/PatientID_XXXX/Timepoint_Y/`,
 each containing `*_brain_t1c.nii.gz`, `*_brain_t1n.nii.gz`, `*_brain_t2f.nii.gz`,
 `*_brain_t2w.nii.gz`, `*_tumorMask.nii.gz`. Because it's 12 GB, it's not in git —
-transfer it separately (USB drive / shared cloud folder) and drop it at
-`PKG - MU-Glioma-Post/` in the repo root, matching the path the notebook expects.
+it's being transferred via USB and should land at `PKG - MU-Glioma-Post/` in the
+repo root, matching the path the notebook expects (`DATASET_PATH` in the notebook).
+
+## Hardware & gotchas
+- **A GPU matters a lot here.** In the original walkthrough, epochs took
+  150–850s each *on 369 BraTS cases*; this dataset has 596 patient-timepoint
+  samples (more data), so CPU-only training could easily run overnight or
+  longer for 25 epochs. If the training laptop has an NVIDIA GPU, make sure
+  `tensorflow` picks it up (matching CUDA/cuDNN installed) before doing a
+  full run — a quick `tf.config.list_physical_devices('GPU')` check up front
+  saves a lot of wasted time.
+- **Sanity-check on a tiny slice first.** Before committing to a full 25-epoch
+  run, it's worth temporarily setting `epochs=1` (or slicing `train_ids[:5]`)
+  just to confirm the pipeline runs end-to-end on this machine without
+  crashing, before letting it run for real.
+- **If you hit out-of-memory (GPU or RAM):** the `DataGenerator` loads 100
+  full-resolution slices per sample per batch. First things to try, in order:
+  lower `batch_size` in `DataGenerator(...)` calls (already 1 by default),
+  or reduce `IMG_SIZE` (currently 128) — that also means editing the
+  `input_layer = Input((IMG_SIZE, IMG_SIZE, 2))` cell consistently.
+- Needs Jupyter (Notebook/Lab) or an editor that runs `.ipynb` cells (e.g.
+  VS Code with the Jupyter extension) to actually execute this.
